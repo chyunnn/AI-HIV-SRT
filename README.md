@@ -7,7 +7,6 @@ This project includes an AgentScope-based version of the HIV social simulation. 
 Run the following commands in PowerShell:
 
 ```powershell
-cd C:\Users\cheny\OneDrive\Desktop\srt\1110
 python -m pip install -r requirements.txt
 ```
 
