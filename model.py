@@ -32,7 +32,8 @@ class SimulationModel:
     
     #重要更新！！！！1011，在这里分别调用prepare_step和finalize_step
     async def step(self):
-        day = self.schedule.steps
+        day = self.schedule.steps + 1
+        self.current_day = day
         self.event_manager.dispatch(day, self)
 
         # #self.schedule.step()

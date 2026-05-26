@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import json
 import os
+import re
 
 
 def _load_formatter():
@@ -56,6 +57,32 @@ def _messages_to_prompt(messages) -> str:
     return "\n\n".join(parts)
 
 
+def parse_decision_json(raw_text: str, default_action=None):
+    """Parse {"reflection": "...", "action": ...} from an LLM response."""
+    text = (raw_text or "").strip()
+    match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, flags=re.DOTALL)
+    if match:
+        text = match.group(1)
+    else:
+        match = re.search(r"\{.*\}", text, flags=re.DOTALL)
+        if match:
+            text = match.group(0)
+
+    try:
+        data = json.loads(text)
+        return {
+            "reflection": str(data.get("reflection", "")).strip(),
+            "action": data.get("action", default_action),
+            "parse_ok": True,
+        }
+    except (TypeError, json.JSONDecodeError):
+        return {
+            "reflection": "",
+            "action": default_action,
+            "parse_ok": False,
+        }
+
+
 _max_concurrency = int(os.getenv("AGENTSCOPE_MAX_CONCURRENCY", "5"))
 _llm_semaphore = asyncio.Semaphore(_max_concurrency)
 
@@ -108,7 +135,7 @@ class AgentScopeDecisionAgent:
 - 风险偏好：{profile["risk_propensity"]}
 
 你需要根据个人特征、近期记忆和当天场景做出行动决策。
-为了方便模拟程序解析，凡是问题要求固定格式时，你必须只输出指定选项，不要解释。
+为了方便模拟程序解析，凡是问题要求 JSON 时，你必须只输出 JSON，不要输出额外解释。
 """.strip()
 
     async def ask(self, messages) -> str:

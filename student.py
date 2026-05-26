@@ -397,15 +397,15 @@ class Student:
         """
         更新健康状态：将 To_Be_Infected 转为 Infected_Undiagnosed，并累加感染天数
         """
+        current_day = getattr(self.model, "current_day", self.model.schedule.steps)
         if self.health_condition == "To_Be_Infected":
             self.health_condition = "Infected_Undiagnosed"
             self.day_infected = 0
-            self.logger.log_infected_profile(self.model.schedule.steps, self)
+            self.logger.log_infected_profile(current_day, self)
         elif self.health_condition == "Infected_Undiagnosed":
             self.day_infected += 1
             if self.test_today:
                 self.health_condition = "Infected_Diagnosed"
-                day = self.model.schedule.steps
                 self.add_memory(f"你经过检测后知道了自己已感染艾滋病病毒。")
         elif self.health_condition == "Infected_Diagnosed":
             self.day_infected += 1

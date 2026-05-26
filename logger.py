@@ -17,6 +17,7 @@ class SimulationLogger:
         self.population_log_path = os.path.join(self.run_output_dir, "population_log.csv")
         self.daily_agent_state_path = os.path.join(self.run_output_dir, "daily_agent_state.csv")
         self.infected_profiles_path = os.path.join(self.run_output_dir, "infected_profiles.csv")
+        self.decision_log_path = os.path.join(self.run_output_dir, "decision_log.csv")
 
         # --- 初始化每个日志文件并写入表头 ---
 
@@ -39,6 +40,14 @@ class SimulationLogger:
             writer.writerow([
                 'Day_Infected', 'Student_ID', 'Age', 'Gender', 'Social_Activity',
                 'Attractiveness', 'Sexual_Orientation', 'Risk_Propensity', 'Infection_Source'
+            ])
+
+        # 4. 初始化 LLM 决策过程日志
+        with open(self.decision_log_path, 'w', newline='', encoding='utf-8-sig') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                'Day', 'Student_ID', 'Decision_Type', 'Parsed_Action', 'Reflection',
+                'Parse_OK', 'Raw_Response', 'Prompt', 'Recent_Memory', 'Metadata'
             ])
 
     def log_population_stats(self, day: int, total_students: int, infected_count: int, infected_venue_count: int, infected_sex_count: int, tested_count: int, condom_acts_count: int, total_sexual_acts: int, condom_intentions_count: int):
@@ -93,6 +102,15 @@ class SimulationLogger:
                 day, student.unique_id, student.age, student.gender, student.social_activity,
                 student.attractiveness, student.sexual_orientation, student.risk_propensity,
                 student.infection_source
+            ])
+
+    def log_decision(self, day: int, student_id: int, decision_type: str, parsed_action, reflection: str, parse_ok: bool, raw_response: str, prompt: str, recent_memory: str = "", metadata: str = ""):
+        """记录每一次 LLM 决策的 prompt、反思与最终 action。"""
+        with open(self.decision_log_path, 'a', newline='', encoding='utf-8-sig') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                day, student_id, decision_type, parsed_action, reflection,
+                "yes" if parse_ok else "no", raw_response, prompt, recent_memory, metadata
             ])
 
 
