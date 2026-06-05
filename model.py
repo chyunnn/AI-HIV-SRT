@@ -1,6 +1,5 @@
-import config
-from student import Student
 from event import EventManager
+from student_agentscope import AgentScopeStudent
 from utils import generate_student_profiles
 import asyncio # 导入 asyncio
 
@@ -11,7 +10,7 @@ class SimpleSchedule:
 
 
 class SimulationModel:
-    def __init__(self, args,logger, student_cls=Student):
+    def __init__(self, args,logger, student_cls=AgentScopeStudent):
         self.schedule = SimpleSchedule()
         self.event_manager  = EventManager()
         self.students       = [] # ⬅️ 这是一个列表
@@ -91,15 +90,15 @@ class SimulationModel:
                     self_act = s.sexual_acts.get(partner_id)
                     other_act = other.sexual_acts.get(s.unique_id)
 
-                    # 判断性行为是否实际发生 (至少一方同意)
-                    sex_happens = (self_act and self_act.get('sex', False)) or \
+                    # 判断性行为是否实际发生：需要双方都同意。
+                    sex_happens = (self_act and self_act.get('sex', False)) and \
                                   (other_act and other_act.get('sex', False))
                     
                     if sex_happens:
                         # 如果性行为发生，总数加一
                         total_sexual_acts_today += 1
                         
-                        # 接着判断这次行为是否使用了安全套 (至少一方同意使用)
+                        # 接着判断这次行为是否使用了安全套：任一方要求使用即使用。
                         self_used_condom = self_act and self_act.get('condom', False)
                         other_used_condom = other_act and other_act.get('condom', False)
                         

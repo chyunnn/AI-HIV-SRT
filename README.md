@@ -1,138 +1,225 @@
-# Running the AgentScope Version
+# AgentScope HIV Social Simulation
 
-This project includes an AgentScope-based version of the HIV social simulation. In this version, student profiles can be initialized from the NCSS-SRH survey distribution, while each student agent uses AgentScope to call DeepSeek for behavior decisions such as location choice, HIV testing, sexual activity, and condom use.
+This repository contains an AgentScope-based HIV social simulation. Student agents are initialized from the 2025 NCSS-SRH survey distribution, then use AgentScope + DeepSeek to make daily behavior decisions such as location choice, HIV testing, sexual activity, and condom use.
 
-## 1. Install Dependencies
+The current version is AgentScope-only. The old non-AgentScope entrypoint has been removed, and the student logic has been merged into a single agent file: `student_agentscope.py`.
 
-Run the following commands in PowerShell:
+## Project Structure
+
+```text
+main_agentscope.py       # Main CLI entrypoint
+student_agentscope.py    # Student agent, AgentScope decisions, interaction, infection, health updates
+agentscope_decision.py   # AgentScope/DeepSeek wrapper and JSON decision parsing
+ncss_sampler.py          # NCSS-SRH 2025 survey-based profile sampling
+model.py                 # Simulation loop and daily aggregate statistics
+event.py                 # Scenario/event memory injection
+logger.py                # CSV output writer
+config.py                # Simulation parameters and environment-variable API keys
+requirements.txt         # Python dependencies
+```
+
+Generated folders such as `outputs*/`, `__pycache__/`, and `.env` should not be committed.
+
+## Data Requirement
+
+The sampler expects the 2025 NCSS-SRH Stata file by default:
+
+```text
+../91-王泽宇-2025.dta
+```
+
+This means that if the repository folder is:
+
+```text
+C:\Users\cheny\OneDrive\Desktop\srt\1110
+```
+
+the data file should be placed at:
+
+```text
+C:\Users\cheny\OneDrive\Desktop\srt\91-王泽宇-2025.dta
+```
+
+You can also provide another path explicitly:
 
 ```powershell
+python main_agentscope.py --profile-source ncss --profile-data "C:\path\to\91-王泽宇-2025.dta"
+```
+
+The raw `.dta` file is not required to be uploaded to GitHub unless the team explicitly decides to share data.
+
+## Install Dependencies
+
+Run in PowerShell:
+
+```powershell
+cd C:\Users\cheny\OneDrive\Desktop\srt\1110
 python -m pip install -r requirements.txt
 ```
 
-## 2. Set Environment Variables
+## Set Environment Variables
 
-Do not hard-code API keys in Python files. Set the DeepSeek API key in the current PowerShell session:
+Do not hard-code API keys in Python files. Set the DeepSeek key in the current PowerShell session:
 
 ```powershell
 $env:PYTHONIOENCODING="utf-8"
 $env:DEEPSEEK_API_KEY="your_deepseek_api_key_here"
 ```
 
-The AgentScope version reads the key from `DEEPSEEK_API_KEY`.
+The code reads the key from `DEEPSEEK_API_KEY`.
 
-## 3. Quick Checks
+## Quick Checks
 
-Check whether AgentScope and the simulation entrypoint can be imported:
+Check whether AgentScope and the entrypoint can be imported:
 
 ```powershell
 python -c "import agentscope; import main_agentscope; print('AgentScope import ok')"
 ```
 
-Check whether NCSS-SRH based profile generation works:
+Check whether NCSS-SRH profile generation works:
 
 ```powershell
 python -c "from utils import generate_student_profiles; print(generate_student_profiles(3, source='ncss'))"
 ```
 
-If this prints three `Student` profiles, the survey-based initialization is working.
+If this prints three `Student` profiles, survey-based initialization is working.
 
-## 4. Run a Small Test
+## Profile Sampling Logic
 
-Start with a very small run to confirm that DeepSeek can be called through AgentScope:
+The current sampler does not independently sample each variable. Instead, it samples complete respondent rows from `91-王泽宇-2025.dta` and maps each row into one simulated student profile.
+
+This preserves empirical joint distributions among variables such as gender, age, sexual orientation, social activity, sexual behavior history, contraceptive behavior, and STI/HIV-related history.
+
+Mapped variables include:
+
+- `sex`: biological sex
+- `age`: age
+- `b1`: sexual orientation
+- `b3`: current relationship status
+- `b3_1`: whether the respondent wants a boyfriend/girlfriend
+- `b3_5`: number of past romantic partners
+- `b3_7_1`, `b3_7_2`: daily social/recreational time
+- `a1_3_*`: school sex education format
+- `a3_0_*`: sources of sexual and reproductive health knowledge
+- `c2`: pornography exposure frequency
+- `c5`: insertive sexual experience
+- `c6`, `c6_1`, `c6_2_*`: casual sex / one-night stand / transactional sex experience
+- `c11`: sexual activity frequency in the past year
+- `c14_0_*`: most recent contraception/protection method
+- `c14_1_*`: reasons for not using contraception
+- `c15`: who usually decides contraception method
+- `c20_0_*`: STI/HIV diagnosis history
+- `c20_10`: HIV treatment after diagnosis
+
+Some simulation variables are derived proxies:
+
+- `social_activity`: derived mainly from `b3_7_1 + b3_7_2`
+- `attractiveness`: currently used as a relationship-opportunity proxy, not literal physical attractiveness
+- `risk_propensity`: derived from sexual experience, casual sex, contraception/protection behavior, sexual frequency, and pornography exposure
+
+## Running a Small Test
+
+Start with a very small run because each agent may call DeepSeek several times per simulated day:
 
 ```powershell
-python main_agentscope.py --population 1 --days 1 --runs 1 --profile-source ncss --scenario none
+python main_agentscope.py --population 2 --days 1 --runs 1 --profile-source ncss --scenario none --output-dir outputs_test
 ```
 
-If successful, the terminal should show agent decisions and a daily summary such as `Day 1: Infected = ...`.
-The full reasoning process is saved in `decision_log.csv`.
+If successful, the terminal will show a daily summary such as:
 
-## 5. Run Baseline and Intervention Experiments
+```text
+Day 1: Infected = ...
+```
 
-Run a baseline group without intervention:
+The full reasoning and action process is saved in `decision_log.csv`.
+
+## Running Baseline and Intervention Experiments
+
+Baseline group:
 
 ```powershell
 python main_agentscope.py --population 10 --days 5 --runs 1 --seed 42 --profile-source ncss --scenario none --output-dir outputs_baseline_seed42
 ```
 
-Run a lecture intervention group:
+Lecture intervention group:
 
 ```powershell
 python main_agentscope.py --population 10 --days 5 --runs 1 --seed 42 --profile-source ncss --scenario lecture --event-day 1 --output-dir outputs_lecture_seed42
 ```
 
-Using the same seed makes the two runs easier to compare.
+Using the same seed makes the two runs easier to compare, but serious analysis should use multiple repetitions.
 
-## 6. Output Files
+## Output Files
 
-Each run creates a timestamped folder inside the selected output directory. The main files are:
-
-- `population_log.csv`: daily aggregate outcomes, including infections, HIV testing, sexual acts, and condom use.
-- `daily_agent_state.csv`: daily state of each student agent.
-- `infected_profiles.csv`: profile records for newly infected agents.
-- `decision_log.csv`: each AgentScope/DeepSeek decision, including prompt, raw response, parsed action, and one-sentence reflection.
-
-For example, this command:
-
-```powershell
-python main_agentscope.py --population 10 --days 5 --runs 1 --profile-source ncss --scenario lecture --output-dir outputs_lecture_seed42
-```
-
-will create a folder similar to:
+Each run creates a timestamped folder inside the selected output directory:
 
 ```text
 outputs_lecture_seed42/
-└── 20260526_203202_run_1/
+└── 20260605_200530_run_1/
     ├── population_log.csv
     ├── daily_agent_state.csv
     ├── infected_profiles.csv
     └── decision_log.csv
 ```
 
-## 7. How to Read the Results
+Main files:
 
-Use `population_log.csv` for high-level intervention outcomes. Each row represents one simulated day.
+- `population_log.csv`: daily aggregate outcomes
+- `daily_agent_state.csv`: daily state of each agent
+- `infected_profiles.csv`: newly infected agent profiles
+- `decision_log.csv`: AgentScope/DeepSeek prompt, raw response, parsed action, and reflection
 
-Important columns:
+## Reading Results
 
-- `Infected_Count`: total number of infected agents by that day.
-- `Infected_Venue`: infections caused by venue exposure.
-- `Infected_Sex`: infections caused by unprotected sex.
-- `Tested_Count`: number of agents who chose HIV testing on that day.
-- `Condom_Acts_Count`: number of sexual acts where condom use occurred.
-- `Total_Sexual_Acts`: total number of sexual acts on that day.
-- `Condom_intentions_Count`: number of agents who expressed condom-use intention.
+Use `population_log.csv` for high-level outcomes:
 
-Use `daily_agent_state.csv` to inspect individual behavior trajectories. Each row is one agent on one day.
+- `Infected_Count`: total infected agents by day
+- `Infected_Venue`: infections from venue exposure
+- `Infected_Sex`: infections from unprotected sex
+- `Tested_Count`: agents choosing HIV testing that day
+- `Condom_Acts_Count`: sexual acts where condom use occurred
+- `Total_Sexual_Acts`: sexual acts that actually occurred
+- `Condom_intentions_Count`: agents expressing condom-use intention
 
-Important columns:
+Use `daily_agent_state.csv` for individual trajectories:
 
-- `Health_Condition`: `Susceptible`, `Infected_Undiagnosed`, or `Infected_Diagnosed`.
-- `Partners_Count`: number of current intimate partners.
-- `Had_Sex_Today`: whether the agent had sex on that day.
-- `Used_Condom_Today`: whether condom use occurred.
-- `Tested_Today`: whether the agent chose HIV testing.
-- `Location`: `dorm` or `venue`.
+- `Health_Condition`
+- `Partners_Count`
+- `Had_Sex_Today`
+- `Used_Condom_Today`
+- `Tested_Today`
+- `Location`
 
-Use `decision_log.csv` to inspect the AgentScope/DeepSeek decision process.
+Use `decision_log.csv` to inspect the model reasoning process:
 
-Important columns:
+- `Decision_Type`: `location`, `hiv_test`, `sexual_activity`, or `condom_use`
+- `Prompt`: prompt sent to DeepSeek
+- `Raw_Response`: original model response
+- `Reflection`: one-sentence reasoning before action
+- `Parsed_Action`: action extracted by the simulation
+- `Parse_OK`: whether JSON parsing succeeded
+- `Recent_Memory`: agent memory used in the prompt
+- `Metadata`: extra context such as partner ID
 
-- `Decision_Type`: the decision being made, such as `location`, `hiv_test`, `sexual_activity`, or `condom_use`.
-- `Prompt`: the prompt sent to the model.
-- `Raw_Response`: the original DeepSeek response.
-- `Reflection`: the model's one-sentence reasoning before action.
-- `Parsed_Action`: the action extracted by the simulation.
-- `Parse_OK`: whether the JSON response was parsed successfully.
-- `Recent_Memory`: the agent's recent memory used in the prompt.
-- `Metadata`: additional context such as partner ID.
+## Current Behavioral Assumptions
 
-Use `infected_profiles.csv` only when infections occur. It records the profile and infection source for newly infected agents.
+Sexual activity now requires mutual agreement:
 
-## 8. Comparing Baseline and Intervention
+```text
+sex_happens = agent_A_agrees AND agent_B_agrees
+```
 
-For intervention analysis, compare the following columns in `population_log.csv`:
+Condom/protection use follows a protective rule:
+
+```text
+condom_used = agent_A_wants_condom OR agent_B_wants_condom
+```
+
+This means sexual activity only occurs if both agents agree, and protection is used if either agent requests it.
+
+## Comparing Baseline and Intervention
+
+Compare these columns in `population_log.csv`:
 
 - `Infected_Count`
 - `Tested_Count`
@@ -142,24 +229,77 @@ For intervention analysis, compare the following columns in `population_log.csv`
 
 Interpretation guide:
 
-- If `Tested_Count` increases after an intervention, the intervention may be increasing HIV testing willingness.
-- If `Condom_Acts_Count` or `Condom_intentions_Count` increases, the intervention may be improving protective behavior.
-- If `Total_Sexual_Acts` decreases, the intervention may be reducing risky encounters.
-- If `Infected_Count` decreases across repeated runs, the intervention may reduce simulated infection risk.
+- Higher `Tested_Count` may indicate increased HIV testing willingness.
+- Higher `Condom_Acts_Count` or `Condom_intentions_Count` may indicate improved protective behavior.
+- Lower `Total_Sexual_Acts` may indicate fewer risky encounters.
+- Lower `Infected_Count` across repeated runs may indicate reduced simulated infection risk.
 
-For a more reliable comparison, run multiple repetitions:
+Recommended repeated-run commands:
 
 ```powershell
 python main_agentscope.py --population 20 --days 7 --runs 3 --seed 42 --profile-source ncss --scenario none --output-dir outputs_baseline_test
 python main_agentscope.py --population 20 --days 7 --runs 3 --seed 42 --profile-source ncss --scenario lecture --event-day 1 --output-dir outputs_lecture_test
 ```
 
-Small runs are useful for debugging, but they are not enough to make strong claims about intervention effects.
+Small runs are useful for debugging, but they are not enough for strong claims about intervention effects.
 
-## 9. Notes
+## GitHub Upload Notes
 
-The NCSS-SRH profile sampler currently uses `91-王泽宇-2025.dta` by default. It samples real survey respondent rows and maps them into simulation profiles, which helps preserve empirical joint distributions among gender, age, sexual orientation, social activity, and risk-related behavior proxies.
+Only upload source code and documentation. Do not upload generated simulation outputs.
 
-Start with small population sizes because each agent may call DeepSeek several times per simulated day.
+Keep:
 
-This folder is now intended to be run through `main_agentscope.py`. The older non-AgentScope entrypoint has been removed to avoid mixing two execution paths.
+```text
+.gitignore
+README.md
+requirements.txt
+main_agentscope.py
+student_agentscope.py
+agentscope_decision.py
+ncss_sampler.py
+model.py
+event.py
+logger.py
+utils.py
+config.py
+```
+
+Do not upload:
+
+```text
+outputs*/
+__pycache__/
+*.pyc
+.env
+```
+
+The `.gitignore` file should include:
+
+```gitignore
+__pycache__/
+*.pyc
+outputs*/
+.env
+```
+
+Before pushing, check:
+
+```powershell
+git status --short
+```
+
+If old generated files were already tracked, remove them from Git tracking but keep them locally:
+
+```powershell
+git rm --cached -r outputs outputs_agentscope outputs_baseline_seed42 outputs_lecture_seed42
+git rm --cached -r __pycache__
+```
+
+Then commit and push:
+
+```powershell
+git add .gitignore README.md requirements.txt main_agentscope.py student_agentscope.py agentscope_decision.py ncss_sampler.py model.py event.py logger.py utils.py config.py
+git add -u
+git commit -m "Update AgentScope simulation documentation"
+git push origin main
+```

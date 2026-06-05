@@ -57,6 +57,37 @@ def _messages_to_prompt(messages) -> str:
     return "\n\n".join(parts)
 
 
+def _format_profile_context(profile: dict) -> str:
+    fields = [
+        ("姓名", "name"),
+        ("年龄", "age"),
+        ("性别", "gender"),
+        ("社交活跃度", "social_activity"),
+        ("关系机会/吸引力代理指标", "attractiveness"),
+        ("性取向", "sexual_orientation"),
+        ("风险偏好", "risk_propensity"),
+        ("学校性教育形式", "sex_education_forms"),
+        ("性与生殖健康知识来源", "knowledge_sources"),
+        ("目前感情状况", "relationship_status"),
+        ("是否想交男/女朋友", "wants_partner"),
+        ("过往恋爱伴侣数量", "past_partner_count"),
+        ("每日社交娱乐时间", "daily_social_hours"),
+        ("色情作品接触频率", "porn_exposure_frequency"),
+        ("是否有插入式性行为经验", "has_insertive_sex"),
+        ("是否有约炮/一夜情/买春经验", "casual_sex_experience"),
+        ("此类性行为对象人数", "casual_sex_partner_count"),
+        ("此类性行为对象类型", "casual_sex_partner_types"),
+        ("过去一年性行为频率", "sex_frequency_last_year"),
+        ("最近一次避孕/安全措施", "recent_contraception_methods"),
+        ("平时避孕及避孕方式决策者", "contraception_decision_maker"),
+        ("未避孕原因", "no_contraception_reasons"),
+        ("过去一年性病确诊史", "sti_history"),
+        ("过去一年艾滋病确诊", "hiv_diagnosis_last_year"),
+        ("艾滋病确诊后治疗情况", "hiv_treatment_after_diagnosis"),
+    ]
+    return "\n".join(f"- {label}：{profile.get(key, '未知')}" for label, key in fields)
+
+
 def parse_decision_json(raw_text: str, default_action=None):
     """Parse {"reflection": "...", "action": ...} from an LLM response."""
     text = (raw_text or "").strip()
@@ -123,16 +154,11 @@ class AgentScopeDecisionAgent:
 
     @staticmethod
     def _build_system_prompt(profile: dict) -> str:
+        extended_context = _format_profile_context(profile)
         return f"""
 你是一名参与校园社会模拟的大学生智能体。
 你的静态个人特征如下：
-- 姓名：{profile["name"]}
-- 年龄：{profile["age"]}
-- 性别：{profile["gender"]}
-- 社交活跃度：{profile["social_activity"]}
-- 吸引力：{profile["attractiveness"]}
-- 性取向：{profile["sexual_orientation"]}
-- 风险偏好：{profile["risk_propensity"]}
+{extended_context}
 
 你需要根据个人特征、近期记忆和当天场景做出行动决策。
 为了方便模拟程序解析，凡是问题要求 JSON 时，你必须只输出 JSON，不要输出额外解释。
