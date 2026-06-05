@@ -11,4 +11,7 @@ class EventManager:
         """把事件记忆注入所有学生"""
         for text in self.schedule.get(day, []):
             for agent in model.students:
-                agent.add_memory(text)
+                if hasattr(agent, "receive_event"):
+                    agent.receive_event(text)
+                else:
+                    agent.add_memory(text)

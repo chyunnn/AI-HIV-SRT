@@ -1,3 +1,5 @@
+import random
+
 import config
 from agentscope_decision import AgentScopeDecisionAgent, parse_decision_json, _format_profile_context
 from utils import probability_threshold
@@ -20,6 +22,7 @@ class AgentScopeStudent:
         self.attractiveness = profile["attractiveness"]
         self.sexual_orientation = profile["sexual_orientation"]
         self.risk_propensity = profile["risk_propensity"]
+        self.awareness = float(profile.get("awareness", 0.25))
 
         self.sex_education_forms = profile.get("sex_education_forms", "未知")
         self.knowledge_sources = profile.get("knowledge_sources", "未知")
@@ -52,6 +55,69 @@ class AgentScopeStudent:
 
     def add_memory(self, text: str):
         self.mems.append(text)
+
+    def receive_event(self, text: str):
+        """Add event memory and update awareness when the event contains health cues."""
+        self.add_memory(text)
+        base_delta, reason = self._awareness_base_delta_from_event(text)
+        if base_delta:
+            participation, multiplier = self._sample_awareness_participation()
+            delta = round(base_delta * multiplier, 3)
+            old_awareness = self.awareness
+            self.awareness = round(max(0.0, min(1.0, self.awareness + delta)), 3)
+            self.profile["awareness"] = self.awareness
+            self.add_memory(
+                f"第{self._current_day()}天事件影响：{reason}；参与程度：{participation}，"
+                f"防艾意识从{old_awareness:.3f}变为{self.awareness:.3f}。"
+            )
+
+    def _sample_awareness_participation(self):
+        """Sample how strongly the agent pays attention to a campus intervention."""
+        weights = {
+            "完全没听": 0.20,
+            "听了一些": 0.50,
+            "很认真听": 0.30,
+        }
+
+        if self.awareness >= 0.65:
+            weights["完全没听"] -= 0.08
+            weights["很认真听"] += 0.08
+        elif self.awareness <= 0.35:
+            weights["完全没听"] += 0.08
+            weights["很认真听"] -= 0.08
+
+        if self.social_activity == "很高":
+            weights["听了一些"] += 0.05
+            weights["完全没听"] -= 0.05
+
+        if self.risk_propensity == "鲁莽的":
+            weights["完全没听"] += 0.06
+            weights["很认真听"] -= 0.06
+        elif self.risk_propensity == "谨慎的":
+            weights["完全没听"] -= 0.05
+            weights["很认真听"] += 0.05
+
+        labels = list(weights)
+        clean_weights = [max(0.01, weights[label]) for label in labels]
+        participation = random.choices(labels, weights=clean_weights, k=1)[0]
+        multipliers = {
+            "完全没听": 0.0,
+            "听了一些": 0.5,
+            "很认真听": 1.0,
+        }
+        return participation, multipliers[participation]
+
+    @staticmethod
+    def _awareness_base_delta_from_event(text: str):
+        if any(keyword in text for keyword in ["科普教育", "预防性病", "艾滋病预防", "安全套"]):
+            return 0.18, "接受防艾/性健康教育"
+        if any(keyword in text for keyword in ["自助检测", "匿名", "保密", "检测机"]):
+            return 0.12, "获得低成本且保密的检测渠道信息"
+        if any(keyword in text for keyword in ["公安", "法律", "刑事责任", "严厉打击"]):
+            return 0.08, "接收到法律风险提示"
+        if any(keyword in text for keyword in ["减少或避免", "娱乐场所", "人身安全"]):
+            return 0.06, "接收到场所风险提醒"
+        return 0.0, ""
 
     def _current_day(self):
         return getattr(self.model, "current_day", self.model.schedule.steps + 1)

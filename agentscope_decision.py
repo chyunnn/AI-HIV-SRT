@@ -66,6 +66,7 @@ def _format_profile_context(profile: dict) -> str:
         ("关系机会/吸引力代理指标", "attractiveness"),
         ("性取向", "sexual_orientation"),
         ("风险偏好", "risk_propensity"),
+        ("健康意识/防艾意识", "awareness"),
         ("学校性教育形式", "sex_education_forms"),
         ("性与生殖健康知识来源", "knowledge_sources"),
         ("目前感情状况", "relationship_status"),

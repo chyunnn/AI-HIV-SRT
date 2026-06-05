@@ -115,12 +115,16 @@ class SimulationModel:
             # 3. 按感染源进行分类统计 (这个逻辑保持不变)
             infected_by_venue = sum(1 for s in self.students if s.infection_source == "venue")
             infected_by_sex = sum(1 for s in self.students if s.infection_source == "unprotected_sex")
+            average_awareness = round(
+                sum(getattr(s, "awareness", 0.0) for s in self.students) / len(self.students),
+                3,
+            ) if self.students else 0.0
             
             # 4. 调用日志，并使用新的变量名 condom_acts_today
-            self.logger.log_population_stats(day, len(self.students), infected_count, infected_by_venue, infected_by_sex, tested_count_today, condom_acts_today, total_sexual_acts_today, total_condom_intentions)
+            self.logger.log_population_stats(day, len(self.students), infected_count, infected_by_venue, infected_by_sex, tested_count_today, condom_acts_today, total_sexual_acts_today, total_condom_intentions, average_awareness)
 
             # 5. 更新print语句
-            print(f"Day {day}: Infected = {infected_count} (Venue: {infected_by_venue}, Sex: {infected_by_sex}), Tested = {tested_count_today}, Condom Acts = {condom_acts_today}, Total Acts = {total_sexual_acts_today}, Condom Intentions = {total_condom_intentions}")
+            print(f"Day {day}: Infected = {infected_count} (Venue: {infected_by_venue}, Sex: {infected_by_sex}), Tested = {tested_count_today}, Condom Acts = {condom_acts_today}, Total Acts = {total_sexual_acts_today}, Condom Intentions = {total_condom_intentions}, Avg Awareness = {average_awareness}")
 
 
              # 6. 检查当前日期是否是我们关心的“检查点” (10, 20, 30, ...)

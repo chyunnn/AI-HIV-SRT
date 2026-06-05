@@ -116,6 +116,32 @@ Some simulation variables are derived proxies:
 - `social_activity`: derived mainly from `b3_7_1 + b3_7_2`
 - `attractiveness`: currently used as a relationship-opportunity proxy, not literal physical attractiveness
 - `risk_propensity`: derived from sexual experience, casual sex, contraception/protection behavior, sexual frequency, and pornography exposure
+- `awareness`: a 0-1 HIV/SRH awareness score derived from sex education, knowledge sources, condom/protection behavior, and STI/HIV history
+
+Initial `awareness` starts from `0.25` and is adjusted as follows:
+
+- each selected school sex education format adds up to `0.08`, capped at three forms
+- each selected knowledge source adds up to `0.06`, capped at five sources
+- condom/protection use adds `0.12`
+- STI/HIV diagnosis history adds `0.08`
+- no contraception/protection use subtracts `0.12`
+- not actively seeking knowledge subtracts `0.15`
+- the final value is clipped to the `0-1` range
+
+Intervention events can further increase `awareness`. Each exposed agent is assigned one of three attention levels:
+
+- `完全没听`: multiplier `0.0`
+- `听了一些`: multiplier `0.5`
+- `很认真听`: multiplier `1.0`
+
+The base event effects are:
+
+- lecture/campaign health education: up to `+0.18`
+- self-test machine information: up to `+0.12`
+- police/legal warning: up to `+0.08`
+- venue risk warning: up to `+0.06`
+
+For example, a lecture gives `+0.00`, `+0.09`, or `+0.18` depending on whether the agent completely ignored it, listened partly, or listened carefully.
 
 ## Running a Small Test
 
@@ -145,6 +171,12 @@ Lecture intervention group:
 
 ```powershell
 python main_agentscope.py --population 10 --days 5 --runs 1 --seed 42 --profile-source ncss --scenario lecture --event-day 1 --output-dir outputs_lecture_seed42
+```
+
+Campaign intervention group:
+
+```powershell
+python main_agentscope.py --population 10 --days 5 --runs 1 --seed 42 --profile-source ncss --scenario campaign --event-day 1 --output-dir outputs_campaign_seed42
 ```
 
 Using the same seed makes the two runs easier to compare, but serious analysis should use multiple repetitions.
@@ -180,6 +212,7 @@ Use `population_log.csv` for high-level outcomes:
 - `Condom_Acts_Count`: sexual acts where condom use occurred
 - `Total_Sexual_Acts`: sexual acts that actually occurred
 - `Condom_intentions_Count`: agents expressing condom-use intention
+- `Average_Awareness`: mean 0-1 awareness score across all agents
 
 Use `daily_agent_state.csv` for individual trajectories:
 
@@ -189,6 +222,7 @@ Use `daily_agent_state.csv` for individual trajectories:
 - `Used_Condom_Today`
 - `Tested_Today`
 - `Location`
+- `Awareness`: the agent's current 0-1 awareness score
 
 Use `decision_log.csv` to inspect the model reasoning process:
 

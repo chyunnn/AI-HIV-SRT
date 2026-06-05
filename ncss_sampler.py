@@ -212,6 +212,33 @@ def _binary_text(value) -> str:
     return "是" if _yes(value) else "否"
 
 
+def _selected_count(row, columns) -> int:
+    return sum(1 for col, _ in columns if col in row.index and _yes(row[col]))
+
+
+def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
+    return max(low, min(high, value))
+
+
+def _awareness_score(row) -> float:
+    """Estimate initial HIV/SRH awareness from education, knowledge, and protection behavior."""
+    sex_ed_count = _selected_count(row, SEX_EDUCATION_FORM_COLUMNS)
+    knowledge_count = _selected_count(row, KNOWLEDGE_SOURCE_COLUMNS)
+    no_active_knowledge = row.get("a3_0_11", 0)
+    condom_used = _yes(row.get("c14_0_4", 0)) or _yes(row.get("c14_0_5", 0))
+    no_contraception = _yes(row.get("c14_0_1", 0))
+    sti_or_hiv_history = _selected_count(row, STI_COLUMNS) > 0
+
+    score = 0.25
+    score += min(sex_ed_count, 3) * 0.08
+    score += min(knowledge_count, 5) * 0.06
+    score += 0.12 if condom_used else 0.0
+    score += 0.08 if sti_or_hiv_history else 0.0
+    score -= 0.12 if no_contraception else 0.0
+    score -= 0.15 if _yes(no_active_knowledge) else 0.0
+    return round(_clamp(score), 3)
+
+
 class NCSSProfileSampler:
     """
     Build simulation profiles from NCSS-SRH respondent rows.
@@ -307,6 +334,7 @@ class NCSSProfileSampler:
                         risk_high,
                         ["谨慎的", "普通的", "鲁莽的"],
                     ),
+                    "awareness": _awareness_score(row),
                     "sex_education_forms": _selected_labels(row, SEX_EDUCATION_FORM_COLUMNS),
                     "knowledge_sources": _selected_labels(row, KNOWLEDGE_SOURCE_COLUMNS),
                     "relationship_status": _value_text(row, "b3"),
